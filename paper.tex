@@ -47,34 +47,31 @@ Big Data Institute, Li Ka Shing Centre for Health Information and Discovery, Uni
 \correspondingauthoraffiliation[$\ast$]{Corresponding author: hossam.ali@well.ox.ac.uk.}
 
 \begin{abstract}
-Sequentially Markovian Coalescent (SMC) models are a central element
-of contemporary population genetics, underlying many inferential
-methods.
-While the SMC has been shown to be an excellent approximation
-to the canonical Coalescent with Recombination model (CwR)
-in terms of low-dimensional summaries such as pairwise linkage
-disequilibrium, the deeper structural properties of the sampled
-Ancestral Recombination Graphs (ARGs) is less well understood.
-Here, we define a general SMC approximation,
-SMC(k), in which a single parameter (k) controls the physical
-scale over which common-ancestor events between non-overlapping ancestral
-segments are permitted. The model encompasses the standard SMC and SMC' models
-as special cases and converges to the CwR as (k) increases, providing a tunable
-trade-off between computational efficiency and fidelity to the full
-recombination process. Using recently developed summaries of ARG structure, we
-show that although SMC approximations preserve marginal coalescent properties,
-they systematically alter the persistence and long-range correlation of
-ancestral material along the genome. Increasing (k) progressively recovers
-these features of CwR ARGs. We implement the SMC(k) in msprime
-and show that it makes whole-chromosome simulation of species like
-\emph{Drosophila melanogaster} that have a large scaled recombination rate
-several orders of magnitude faster
-than under the CwR for small sample sizes.
-We illustrate the practical consequence by using SMC
-simulations for chromosome-scale parametric bootstrapping of demographic
-inference, and find that SMC' captures uncertainty in SFS-based estimates
-remarkably well despite its reduced representation of long-range ancestral
-structure.
+Sequentially Markovian Coalescent (SMC) models are a central element of
+contemporary population genetics, underlying many inferential methods. While
+the SMC has been shown to closely approximate the canonical Coalescent with
+Recombination (CwR) in terms of low-dimensional, two-locus summaries, its
+effects on the deeper structural properties of Ancestral Recombination Graphs
+(ARGs) are less well understood. Here, we define a general SMC approximation,
+SMC($k$), in which a single parameter $k$ controls the physical scale over
+which common-ancestor events between non-overlapping ancestral segments are
+permitted. The model encompasses the standard SMC and SMC$^\prime$ as special
+cases and converges to the CwR as $k$ increases, providing a tunable trade-off
+between computational efficiency and fidelity to the full recombination
+process. Using recently developed summaries of ARG structure, we show that SMC
+approximations systematically truncate the persistence of ancestral haplotypes
+across the genome, despite preserving marginal coalescent properties, and that
+increasing $k$ progressively recovers this long-range ancestral structure. We
+implement SMC($k$) in \texttt{msprime} and show that, for small samples, it
+makes whole-chromosome simulation in species with large population-scaled
+recombination rates, such as \emph{Drosophila melanogaster}, several orders of
+magnitude faster than the CwR. Finally, we use SMC simulations for
+chromosome-scale parametric bootstrapping of demographic inference and find
+that SMC$^\prime$ captures uncertainty in SFS-based estimates remarkably well,
+with only modest changes as $k$ increases despite substantial differences in
+long-range ARG structure. Thus, the importance of SMC approximation error
+depends strongly on which properties of ancestry are relevant to the downstream
+analysis.
 \end{abstract}
 
 \keywords{Ancestral Recombination Graph; Tree sequence; Coalescent; SMC}
