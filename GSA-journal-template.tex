@@ -1,0 +1,289 @@
+\documentclass[9pt,twocolumn,twoside,lineno]{gsajnl}
+% Use the documentclass option 'lineno' to view line numbers
+
+\usepackage{epstopdf}
+\usepackage{subcaption}
+\usepackage{verbatim}
+\usepackage{booktabs}
+
+\articletype{inv} % article type
+% {inv} Brief Note
+% {gs} Genomic Selection
+% {goi} Genetics of Immunity
+% {gos} Genetics of Sex
+% {mp} Multiparental Populations
+
+\newcommand{\beginsupplement}{%
+\setcounter{table}{0}
+\renewcommand{\thetable}{S\arabic{table}}%
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}%
+}
+
+\runningtitle{GENETICS Journal Template on Overleaf} % For use in the footer
+\runningauthor{Loay \textit{et al.}}
+
+\title{Implementing a general SMC approximation to enable chromosome scale coalescence simulations}
+
+\author[1,$\dagger$, $\ast$]{Hossameldin Loay}
+\author[1, $\dagger$]{Gertjan Bisschop}
+\author[2]{Derek Setter}
+\author[3, 4]{Abdelmajid Omarjee}
+\author[1]{Jerome Kelleher}
+\author[2]{Konrad Lohse}
+
+\affil[1]{
+Big Data Institute, Li Ka Shing Centre for Health Information and Discovery, University of Oxford, Oxford, OX3 7LF, United Kingdom}
+\affil[2]{Institute of Ecology and Evolution, University of Edinburgh, Edinburgh, UK}
+\affil[3]{Institut de Syst´ematique, Evolution, Biodiversit´e UMR 7205 – Museum National d’Histoire Naturelle – France}
+\affil[4]{Center for Interdisciplinary Research in Biology (UMR 7241) – Coll`ege de France, Paris Sciences et Lettres University, Paris – France}
+\affil[$\dagger$]{These authors contributed equally to this work.}
+
+% Use the \equalcontrib command to mark authors with equal
+% contributions, using the relevant superscript numbers
+%\equalcontrib{1}
+%\equalcontrib{2}
+
+\correspondingauthoraffiliation[$\ast$]{Corresponding author: hossam.ali@well.ox.ac.uk.}
+
+\begin{abstract}
+\textit{msprime} is a state-of-the-art population genetics simulator that has become an essential tool for evolutionary analysis. It primarily uses the standard coalescent with recombination (CwR) model to simulate Ancestral Recombination Graphs (ARGs) backwards in time. While the implementation of the CwR model in \textit{msprime} is efficient and enables large-scale simulations for humans, simulating ancestry at the scale of entire chromosomes remains challenging for taxa with high (scaled) recombination rates such as \textit{Drosophila}. Here we present a new implementation of a general Sequentially Markovian Coalescent (SMC) model in \textit{msprime} that addresses this gap and makes chromosome scale coalescence simulations feasible for species with Drosophila-like parameters. More significantly, the SMC model we implement is a flexible, general approximation where the accuracy relative to the CwR is specified with a single scaling parameter $k$.
+While the marginal distribution of coalescence times is unaffected by the approximation, $k$ specifies the physical scale at which common ancestor events between non-overlapping genomic segments are permitted. We examine the effect of this general SMC(k) approximation on the linkage structure captured in the resulting ARGs and demonstrate how the SMC(k) can be used to bootstrap point estimates of demographic history obtained from composite likelihood methods.
+
+\end{abstract}
+
+\keywords{Ancestral Recombination Graph; Tree sequence; Coalescent; SMC}
+
+
+\begin{document}
+
+\maketitle
+\thispagestyle{firststyle}
+\section{Introduction}
+
+Coalescent simulators model the ancestry of a sample of sequences backward in time as an ancestral recombination graph (ARG) \citep{baumdicker_efficient_2022, wong_general_2024, lewanski_era_2024} and provide a fast alternative to costly forwards-in-time individual-based simulations under many evolutionary scenarios, especially using efficient implementations like \textit{msprime} \citep{baumdicker_efficient_2022, kelleher_efficient_2016}. Traditionally, the coalescent with recombination (CwR) provides the canonical null model of population genomics, and coalescent simulators based on the CwR allow simulating sample ancestries under complex demographic histories \citep{hudson_properties_1983}. However, simulation routines for a growing suite of alternative models of ancestry have been implemented including the discrete-time Wright–Fisher model (DTWF) \citep{nelson_accounting_2020}, explicit pedigrees \citep{anderson-trocme_genes_2023}, and hybrid simulations that combine complex whole-population forwards-in-time simulations with deeper ancestry simulated backwards in time via ``recapitation'' using \textit{pyslim} \citep{gopalan_bridging_2025}.
+
+However, coalescent simulations at the scale of whole chromosomes remain computationally challenging when the population scaled recombination rates $\rho = 4 N_e r$ is large, i.e.\ parameter regimes that are relevant for understanding population genomic variation in \textit{Drosophila} \citep{baumdicker_efficient_2022} and many other taxa with similar or higher levels of genetic diversity \citep{leffler_revisiting_2012}.
+
+The Sequentially Markovian Coalescent (SMC) \citep{mcvean_approximating_2005} and its refinement, the SMC’ \citep{marjoram_fast_2006} are widely used approximations of the CwR. Originally developed to make chromosome scale simulations computationally feasible for human-like parameters, the SMC has become best known as the basis of Hidden Markov Models, such as the PSMC \citep{li_inference_2011} and related approaches \citep{schiffels_inferring_2014, terhorst_accelerated_2025}, that infer the demographic history of populations (or the Inverse Instantaneous Coalescent Rate). Inference based on the SMC has been extended beyond trajectories of past effective population size \citep{peede_not_2026} to include selfing \citep{sellinger_inference_2020}, species divergence \citep{hobolth_genomic_2007}, gene flow \citep{dutheil_ancestral_2009, rivas-gonzalez_trails_2024, cousins_structured_2025}, and structural variation \citep{ignatieva_length_2025}. However, the SMC and SMC’ approximations fail to capture important longe-range correlation in ancestry along the genome.
+
+In this study, we implement a generalised SMC approximation, the SMC(k) model, in \textit{msprime v1.4}. The SMC(k) encompasses the SMC and the CWR models as limit cases, where $k$ is a tuning parameter that determines the strength of approximation relative to the CwR. The paper is structured as follows: First, we describe the backwards implementation of the SMC(k). Second, we compare the linkage structure of ARGs generated under the approximation to those of the full CwR and describe how ARGs generated under the SMC' and the CwR differ. Finally, we illustrate how simulations under the SMC(k) can be used to bootstrap composite likelihood estimates of past demography using an example from \textit{Drosophila melanogaster}. 
+
+\section{Results}
+\label{sec:materials:methods}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.8\linewidth]{figures/smck_illustration.png}
+\caption{\textbf{The SMC(k) model restricts coalescence events:} we indicate which of the possible coalescence events are permitted for various choices of $k$. All scenarios are allowed under the CwR. For $k = 0$, coalescence (purple) is permitted only when the coalescing lineages carry overlapping ancestral material (red and blue), equivalent to the SMC model. For $k=1$, coalescence may also occur if adjacent intervals are present, equivalent to the SMC' model. For $k>1$, ancestry events that result in trapped non-ancestral material are permitted. The maximum span of any such interval is $k-1$, and when $k=L$, the full sequence length, the model converges to the CwR.}
+\label{fig:illustration1}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=\linewidth]{figures/speed.pdf}
+\caption{\textbf{The SMC($k$) enables whole chromosome simulations in the \textit{Drosophila} parameter regime}. Execution time for simulations under the CwR and the SMC(1) model for a sample of $n=2$ diploid sequences and assuming different population-scaled sequence length for chromosome 1 in humans ($10e4 \times 249Mbp$) and chromosome 2R \textit{D.\ melanogaster} $10e6 \times 25.4Mbp$.}
+\label{fig:speed}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/arg_illustration.png}
+\caption{\textbf{The ancestry of a sample of three haplotypes in ARG format (left) and treesequence format (right).} In the ARG, we see that nodes 3 and 4 both have two parents, meaning they are recombinant nodes. These recombination events result in three distinct correlated trees along the genome. Coalescence in ancestral node 5 results in trapped non-ancestral material. It is (locally) unary in the left and right trees but absent in the middle tree. Subsequent coalescence in node 7 results in a node that is binary for the left and right trees, but unary in the middle tree. This type of event is possible only under the CwR or the SMC(k) with k $\geq$ 3.}
+\label{fig:illustration2}
+\end{figure}
+
+\subsection{The SMC(k) model}
+
+%bit more detail on left to r vs backwards impleme
+The SMC models the ancestry of a sample by assuming a Markovian Process along the genome, i.e., the local genealogy at any position depends only on the genealogy to the left \citep{mcvean_approximating_2005}. Backward in time, the standard SMC is equivalent to restricting coalescence events only to pairs of lineages with overlapping ancestry segments \citep{mcvean_approximating_2005,bisschop_likelihoods_2025}. Because the SMC ignores the possibility of trapped, non-ancestral material, it over-estimates the number of independent ancestors that contribute to a sample and under-estimates long-range linkage disequilibrium (LD) \citep{marjoram_fast_2006}. For example, in the CwR, a pair of recombinant lineages has an appreciable chance to coalesce back together before any further events alter their ancestry. An updated version of the SMC, the SMC', was introduced to account for these events by including coalesence between exactly adjacent but non-overlapping ancestry segments \citep{marjoram_fast_2006}.
+
+Although the SMC' is a substantial improvement over the standard SMC model, it only partially captures the long range correlations in ancestry generated under the CwR. Here, we introduce an approximation, SMC(k), that can capture correlations in ancestry up to an arbitrary level of precision which is specified by a scale parameter $k$. This general approximate model is inspired by similar approaches implemented in \textit{MaCS} \citep{chen_fast_2009}, \textit{scrm} \citep{staab_scrm_2015}, and \textit{Cosi2} \citep{shlyakhter_cosi2_2014}.
+
+The efficient implementation of the SMC(k) in \textit{msprime v1.4} overcomes the limitations of the CwR and permits simulations with a very high scaled recombination rate $\rho$. The SMC(k) is defined as the CwR process in which common ancestor events between lineages $a$ and $b$ are only permitted if the physical distance between the hulls of $a$ and $b$, is at most $k$ (Fig.~\ref{fig:illustration1}). Importantly, if we assume a discretised genome, the SMC(0) and SMC (1) are equivalent to the standard SMC and SMC' models respectively. Furthermore, SMC(L), where $L$ is the chromosome length, is equivalent to the full CwR.
+
+Since simulating under the SMC(k) involves tracking the hulls of each ancestral segment, execution time under the SMC(k) scales linearly with sample size ($n$) (Supplementary Fig. \ref{fig:scaling_sample_size}). In contrast, computation for the CwR scales only with the logarithm of $n$ (Supplementary Fig. \ref{fig:scaling_sample_size}). For example, simulating two diploid samples of an entire \textit{Drosophila} chromosome under the SMC(1) model is three orders of magnitude faster than under the CwR model (Fig.~\ref{fig:speed}). However, Supplementary Fig.~\ref{fig:speed_per_sample_size} illustrates how execution time scales with sample size and sequence length $L$. While simulating under the SMC(k) model is efficient for samples on the order of $n=10$, for larger sample sizes and values of $k$, simulations become inefficient compared to the standard CwR model. 
+
+%Describe the implementation in msprime in a few sentences. Describe the regime in which it performs well. Reference fig 3 (currently fig 5). \newline
+\textbf{TODO} JK
+
+
+
+\subsection{How good is the SMC approximation?}
+% differences between  CWR and SMC_K ARGs
+% Systematically capture what k does; i.e. measuring long range haplotype structure
+
+The consensus that the SMC' model is a highly accurate approximation of the CwR is supported by the close agreement in the joint distribution of pairwise coalescence times for two loci between the SMC' and the CwR models \citep{wilton_smc_2015}. While expectations for standard, two locus summaries of LD can be expressed entirely in terms of the covariance in pairwise coalescence times \citep{mcVean2002genealogical}, two locus measures of LD are of course lossy summaries of the LD structure captured by the ARG. Rather, we turn to the nodes of an ARG themselves, the spans of which capture more detailed information about linkage. 
+
+Each node in an ARG corresponds to a unique genetic ancestor of the sample. The genomic segments associated with a node can be classified into three different categories (see Fig.~\ref{fig:illustration2}): Firstly, the binary span of a node is the total span of genomic segments an ancestor contributes to two daughter nodes. Analogously, we can define the unary node span as the total length of genome over which this ancestor has a single daughter node~\cite{wong_general_2024}. Unary node spans  for example, capture the persistence of ancestral haplotypes across trees contained in an ARG \citep{Fritze_forest_2025}. Finally, the span of trapped non-ancestral material is the span of genomic segments \textit{between} binary and/or unary segments associated with a node. Importantly, all recombination nodes in an ARG are unary by definition (e.g.\ 3 and 4 in Fig.~\ref{fig:illustration2}) and a single coalescence node may contribute to all three span types. For example, node 5 in Fig.~\ref{fig:illustration2} is binary for two segments and associated with trapped non-ancestral material of length 2. In contrast, node 7 is also binary for the same two segments but associated with a unary span of length 2. 
+
+We simulated ARGs under the SMC(k) for a range of $k$ values and compared the total spans of different categories of nodes to those of ARGs generated under the CwR. Fig.~\ref{fig:stacked_bar} shows the average length (per node) of these different categories of segments in ARGs simulated under different models for $n=2$ diploid samples and for three different scaled recombination rates $\rho = 4 N_e r_\mathrm{bp}$ normalized by the $\rho = 0.0004$ estimated for humans (assuming $N_e =10^4$ and $r_\mathrm{bp}= 10^{-8}$). We see that the total span of unary nodes is shorter under the SMC(k) than under the CwR. As expected, the average unary node span converges to the CwR model with increasing values of $k$. Qualitatively similar results were obtained for larger samples, $n=1,000$ (Supplementary Fig.~\ref{fig:avg_l2_log}). Supplementary Fig.~\ref{fig:avg_l2_log} shows a similar trend of reduced overall span of binary nodes for the SMC(k). This observation reflects a reduced persistence of ancestral haplotypes in the ARG under the SMC(k). Although common ancestor events between distant genomic segments clearly do not contribute much to the correlation in pairwise coalescence times; long range LD due to ancestral segments that are inherited from the same ancestor are a fundamental property of ARGs under the full CwR. For increasing values of $k$, the SMC(k) model includes an increasing number of ancestry events that give rise to this long range LD.
+
+Another way to compare ARGs arising under the SMC(k) and the CwR is in terms of their ``matched span'', a similarity metric implemented in \textit{tscompare} \citep{Fritze_forest_2025}. We normalised the similarity with the baseline/expected similarity between two random ARGs generated under the CwR. Perhaps unsurprisingly, we find that the normalised matched span of CwR ARGs in SMC(k) ARGs is reduced under the SMC(k) to a degree that is inversely proportional to $k$ (Fig.\ \ref{fig:ts_inverse_matched_span}). Additionally, the inverse comparison (of matched span length of SMC(k) vs CwR ARGs) shows no reduction in similarity (Supplementary Fig.\ \ref{fig:ts_matched_span}). We therefore conclude that in terms of the node spans they contain, ARGs generated by the SMC(k) are a subset of CwR ARGs.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/average_hulls_2samples_segments_stacked_bar.pdf}
+\caption{\textbf{The distribution of ancestral material differs between the SMC' and CwR models}. Stacked bars show the average sequence span per node of unary nodes (lighter colours), binary nodes (darker colours), and trapped non-ancestral material (grey) across human-scaled recombination rates for different models. ARGs that arise from the SMC' and standard SMC model do not contain trapped non-ancestral material by definition. The simulated chromosome is of 1 Mbp length. (CwR in blue, SMC(0) in red, SMC(1) in green, and SMC(L/2) in orange).}
+\label{fig:stacked_bar}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=\linewidth]{figures/tscompare_inverse_matched_span_length_comparison.pdf}
+\caption{\textbf{The similarity between ARGs simulated under the CwR and the SMC(k) depends on $k$.} The distribution of normalised similarity between ARGs simulated under the CwR and SMC(k) for different values of $k$. Similarity is measured in terms of the \texttt{matched span} length computed by \textit{tscompare} normalised by the similarity expected between two random ARGs simulated under the CwR.}
+\label{fig:ts_inverse_matched_span}
+\end{figure}
+
+\subsection{Bootstrapping demographic inference}
+
+Drawing inferences about the demographic and selective history of populations is a key goal in population genomics. Many inference tools focus on variation at the level of SNPs which can be summarised via the site frequency spectrum (SFS) or higher order summaries thereof \citep{gutenkunst_inferring_2009, 
+excoffier_fastsimcoal2_2021,
+liu_stairway_2020, omarjee_blockbuster_2026}. While SFS based inference of point estimates in a composite likelihood framework is efficient, it ignores LD between variants. Similarly, inference methods based on variation within sequence blocks \citep{laetsch_demographically_2023} or loci also tend to assume statistical independence between them. In both cases, quantifying the uncertainty in composite likelihood estimates has proven challenging, and solutions to this problem generally rely on an arbitrary cut-off. That is, one assumes that SNPs or sequence blocks separated by some minimal physical or map distance can be treated as (approximately) statistically independent. The alternative is to perform a data bootstrap with a scale of block-wise resampling that is generally not informed by LD.
+
+This use of distance thresholds -- albeit common practice in the field -- is clearly \emph{ad hoc} and not justifiable given that under the CwR, LD is non-zero even between pairs of loci on opposite ends of a chromosome. As a consequence, it is generally unclear whether confidence intervals based on such thresholds are conservative or overconfident. A meaningful estimation of uncertainty of composite likelihood parameters must incorporate the statistical non-independence of genomic variation due to LD, and the SMC(k) provides the means to do this even for organisms with high recombination rates. 
+
+To demonstrate how simulations under the SMC(k) can be used to achieve this, we perform parametric boostraps for the inference of a piecewise constant history of $N_e$ change in the South African \textit{D.\ melanogaster} population (SP) from WGS data ($n =38$ individuals \citep{pool2012}) first described by \citet{chen_sub-saharan_2024}. This history was initially inferred from the unfolded SFS of putatively neutral sites on chromosome 2R (which is free of large inversions) using Stairway Plot 2 \citep{liu_stairway_2020}. To perform a parametric bootstrap for the inferred demographic history, we simulated replicated datasets under the inferred history using SMC(1). For each replicate, we used \texttt{blockbuster} \citep{omarjee_blockbuster_2026}, an analytic composite likelihood method analogous to but more efficient than Stairway Plot 2, to infer a three epoch model of $N_e$ change from the SFS (see Methods, code available in xxx).
+
+We find that, as expected, the uncertainty in estimated $N_e$ was lowest for the middle epoch (blue in Fig.\ \ref{fig:bootstrap} right). Since low values of $k$ underestimate long range LD, one would expect an associated underestimation of the uncertainty in point estimates of $N_e$. However, while our bootstrap analysis (Supplementary Fig.\ ~\ref{fig:error_decay_analysis}) shows the expected increase in uncertainty (measured in terms of mean squared error) with $k$, we find that this effect is surprisingly small.
+
+\begin{figure*}
+\centering
+\includegraphics[width=\linewidth]{figures/combined_demes_combinedplot.png}
+
+\caption{\textbf{The SMC(k) enables the use of whole chromosome simulations to estimate of the uncertainty of point estimates of demographic histories}. \textbf{(left) The demography history of the South African \textit{D.\ melanogaster} population}. The blue line represents the demography history inferred by \citep{chen_sub-saharan_2024}. The dotted shows the average history of $N_e$ change inferred across 100 simulated SMC(1) bootstrap replicates; the associated 95\% confidence interval is shown as a gray sleeve. \textbf{(right) The Root Mean Squared Error (RMSE) of epoch wise $N_e$ estimates decreases with sequence length.} The distribution of RMSE for each simulated epoch for three simulated sequence lengths.}
+
+\label{fig:bootstrap}
+\end{figure*}
+
+\section{Methods}
+% descibe version used etc to make Fig 3 
+All simulations were performed using \textit{msprime v1.4} on a 12th Gen Intel® Core™ i5-1250P processor. ARG operations were supported by \textit{tskit v1.0} \citep{jeffery_population-scale_2026}.
+
+\subsection{Benchmarking}
+We averaged the execution time across 25 replicate simulations, each consisting of two diploid samples of sequence length 25.28 Mbp and a recombination rate $r_{bp}= 1.045e-8$. This corresponds to direct estimates of the map length of \textit{Drosophila} chromosome 2R \citep[][Table 2]{comeron2012}. We assumed a quadratic fit of the CwR execution time to estimate the predicted execution time for \textit{Drosophila}. 
+
+\subsection{Comparing SMC(k) and the CwR}
+We simulated 100kbp of chromosome 2R in \textit{D.\ melanogaster} ($r_{bp}=1.045e-8$). To measure the distribution of ancestral material, for each of the following parameters, we simulated 10 ARG replicates of two diploid samples with a sequence length of 100kbp and a population size of 1M  diploid individuals, four models: full CwR, SMC(500kb), SMC' [SMC(1)], and the standard SMC model [SMC(0)]. To retain unary nodes, we set the coalescing\_segments\_only flag in \textit{msprime} to \textit{false}. Since \textit{msprime} stops simulating a local tree once a most recent common ancestor (MRCA) is reached, unary nodes may be absent from some local trees if they belong to a branch above the local MRCA. Therefore, we set the stop\_at\_local\_mrca flag to false, ensuring that simulations continue until a local MRCA is reached for all local trees. (Fig.  \ref{fig:stacked_bar}).
+
+We measured similarity as \textit{tscompare v0.2}'s matched sequence span. For different $k$ values (0 [SMC], 1 [SMC'], 1kbp, and 10kbp), we simulated 1,000 independent pairs of ARG, each consisting of one ARG simulated under the SMC(k) model and one ARG simulated under the CwR model. Each ARG is made of two diploid samples (Fig. \ref{fig:ts_inverse_matched_span}).
+
+\subsection{Bootstrapping demographic inference}
+We simulated replicate datasets under this inferred history under the SMC(1), each consisting of 20 haploid sequences of chromosome 2R (the sequence length was set to 25.28 bp) and assumed a recombination rate of $r_\mathrm{bp} = 1.045e-08$. We used the \texttt{tskit} \texttt{allele\_frequency\_spectrum} function to calculate the mutation based unfolded SFS \citep{Ralph2020Stats}. 
+Fig. \ref{fig:bootstrap} (a) shows the simulated demography and the mean estimated demography from SMC(1) simulated SFSs using blockbuster. Fig \ref{fig:bootstrap} (b) shows the decrease in normalised mean squared error for the three demography epochs with the increase of simulated sequence length. Using larger $k$ values, however, does not affect inference accuracy significantly (supplementary Fig.~\ref{fig:varyingK}). 
+
+\section{Discussion}
+
+Despite the progress of population genomic algorithms, for many model organisms, simulating ancestry at the scale of chromosomes remains prohibitively costly using either forwards individual-based simulations or the full backward model of coalescent with recombination. We have implemented a general SMC approximation, the SMC(k) model, that makes chromosome-scale coalescent simulations feasible for species with high population-scaled recombination rates such as \textit{D.\ melanogaster}. The SMC(k) model is parametrised by a single parameter $k$ that specifies the maximum physical gap permitted between the hulls of coalescing lineages and thereby defines the accuracy of the approximation relative to the full CwR. We show that SMC(k) ARGs are accurate subsets of the ARGs generated under the CwR. The marginal distribution of coalescence times is always preserved. In contrast, the long-range correlations in ancestry are progressively recovered with increasing $k$, and the choice of $k$ generally involves a trade-off between accuracy and computation time. For very large samples, however, the SMC(k) is less efficient than the CwR because  of the cost of tracking pairwise hull distances. As such, we demonstrate that the SMC(k) overcomes the limitations of standard algorithms when simulating small samples ($n<100$) for populations with high recombination rates.
+
+
+\subsection{Limitations}
+One limitation of the SMC(k) algorithm is that $k$ is defined in terms of physical rather than map distance. It is important to stress here that the SMC(k) only censors coalescence events but has no effect on the local rates of recombination. As such, there is a disconnect between the scale at which recombination events break down linkage over an arbitrary recombination map and the scale at which coalescence may generate correlation in ancestry. Ideally, we would like to implement our approximation using a map-based analogue to the SMC(k). However, because genetic map distances fluctuate relative to physical distances, dynamically calculating a map-based gap penalty for every lineage pair at every step introduces massive computational overhead, forcing us to rely on the static physical scale $k$. We note that one limitation of our current implementation of the SMC(k) is that it is not compatible with gene conversion.
+%As a consequence of measuring $k$ on the physical map, we expect the SMC(k) approximation to be better for recombination hot-spots.
+
+\subsection{Using the SMC(k) for bootstrapping inference}
+
+It is perhaps surprising that the expected uncertainty in estimates of population size change based on the SMC' are very similar to that of the full CwR. We conclude that parametric bootrapping based on the SMC' is sufficient for SFS based estimates of stepwise constant histories. Nevertheless, bootstrapping based on the SMC' model is slightly overconfident, i.e.\ underestimates uncertainty in parameter estimates compared to the full CwR model (Supplementary Fig.~\ref{fig:variance}). We would argue that the accuracy of bootstrapping based on SMC(k) (and the choice of $k$) must depend both on the demographic history at hand and the data summary one considers. Long-range LD that is generated, for example, under demographic histories that include recent gene flow is unlikely to be captured well with low values of $k$. Indeed, bootstrapping for inference based on haplotype summaries or Hidden Markov Models (which themselves assume the SMC') likely requires more accurate modelling of long-range LD, and so higher $k$. Further work is required to determine how the accuracy of parametric bootstrap depends on model complexity and data summaries.
+
+\subsection{Future directions}
+While we have focused on implementing and describing the SMC(k) as an algorithm for efficient chromosome scale simulation, another potential use is to build more accurate inference methods from the SMC(k) itself. For example, HMM methods for inferring step-wise constant histories of population size change based on the SMC' model \citep{schiffels_inferring_2014} are more accurate than precursors based on the SMC \citep{li_inference_2011}. It may be possible to further improve such inference methods with the SMC(k)LD . Likewise, the SMC(k) should be useful for developing efficient simulation-based inference methods.
+
+Finally, ARG reconstruction heuristics may benefit from conditioning explicitly on a maximum scale of trapped non-ancestral material given that the accuracy of haplotype reconstruction (e.g.\ based on read pair information) is generally dependent on physical scale.
+
+\section{Data availability}
+
+\section{Acknowledgments}
+We thank Guillaume Achaz for helpful discussions.
+
+\section{Funding}
+HL, GB, DS, KL and JK are funded by EPSRC grant EP/X022595/1.
+
+%\section{Conflicts of interest}
+%Please either state that you have no conflicts of interest, or list relevant information here.  This would cover any situations that might raise any questions of bias in your work and in your article’s conclusions, implications, or opinions. Please see \url{https://academic.oup.com/journals/pages/authors/authors_faqs/conflicts_of_interest}.
+
+\bibliography{example-bibliography}
+
+\beginsupplement
+\clearpage
+\section*{Supplementary Information}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/speed_per_sample_size.pdf}
+\caption{\textbf{Execution time scales with the number of simulated samples.} Execution time in seconds for the SMC(1) model across different population-scaled sequence lengths. Different line colours represent different numbers of simulated samples.}
+\label{fig:speed_per_sample_size}
+\end{figure}
+
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/scaling_with_sample_size_CwR_SMC(1)_nel1e+12.pdf}
+\caption{\textbf{Excution time scales differently between the CwR model and the SMC(1) model.} Execution time scales linearly with sample size for the SMC(1) model ($O(n)$, orange), while it scales logarithmically with sample size for the CwR model ($O(logn)$, blue). }
+\label{fig:scaling_sample_size}
+\end{figure}
+
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/single_paramaverage_hulls_2samples_segments_avg_l2_log.pdf}
+\caption{\textbf{Average binary node spans are shorter for SMC(k) ARGs than for CwR ARGs.} The bar plot shows the average binary node span (n=10) for ARGs simulated under different models. The simulated sequence length is 1Mbp, population size is $10^6$ individuals, and recombination rate is $10^{-8}$ .}
+\label{fig:avg_l2_log}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/combined_demes_SP_boxplots_only.png}
+\caption{\textbf{Normalised Mean Squared Error in inferred population size is k value insensitive.} \textit{Blockbuster} population size inference from SFSs simulated under different SMC models. Increasing k value does not affect the quality of the population size inference.}
+\label{fig:varyingK}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/combined_demes_compare_boxes.png}
+\caption{\textbf{The variance in the Normalised Mean Squared error scales very modestly with k.} The variance of the Normalised Mean Squared Error of the inferred population size of a drosophila population simulated under the SMC(1) model and the SMC(1M) model.}
+\label{fig:variance}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/tscompare_matched_span_length_comparison.pdf}
+\caption{\textbf{The matched sequence spans of the SMC(K) ARGs to the CwR args does not depend on $k$.} The distribution of normalised similarity between ARGs simulated under the SMC(K) and CwR for different values of k. Similarity is measured in terms of the matched span length computed by tscompare
+normalised by the similarity expected between two random ARGs simulated under the CwR.}
+\label{fig:ts_matched_span}
+\end{figure}
+
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{figures/error_decay_analysis.png}
+\caption{RMSE error of inferred demography decreases linearly with simulated sequence length.}
+\label{fig:error_decay_analysis}
+\end{figure}
+
+
+\begin{table}[h!]
+\centering
+\begin{tabular*}{\linewidth}{
+@{\extracolsep{\fill}}
+c|
+>{\centering\arraybackslash}m{2cm}
+>{\centering\arraybackslash}m{2cm}
+>{\centering\arraybackslash}m{2cm}
+}
+\toprule
+Node & Unary Span & Binary Span & Trapped non-ancestral Material Span\\
+\midrule
+3 & 5 & 0 & 0 \\
+4 & 4 & 0 & 0 \\
+5 & 3 & 0 & 2 \\
+6 & 3 & 2 & 0 \\
+7 & 2 & 3 & 0 \\
+8 & 0 & 5 & 0 \\
+\bottomrule
+\end{tabular*}
+\caption{\textbf{Sequence span per node example.} The sequence span per node in Fig:\ref{fig:illustration2} categorised by the type of ancestral material. }
+\label{tab:nodespans}
+\end{table}
+
+
+\end{document} 
