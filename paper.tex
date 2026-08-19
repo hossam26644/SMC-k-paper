@@ -184,13 +184,13 @@ depends on the properties of ancestry relevant to the downstream analysis.
 
 \begin{figure}[t] \centering
 \includegraphics[width=0.8\linewidth]{figures/smck_illustration.png}
-\caption{\textbf{The SMC(k) model restricts coalescence events:} we indicate
-which of the possible coalescence events are permitted for various choices of
-$k$. All scenarios are allowed under the CwR. For $k = 0$, coalescence (purple)
-is permitted only when the coalescing lineages carry overlapping ancestral
-material (red and blue), equivalent to the SMC model. For $k=1$, coalescence
-may also occur if adjacent intervals are present, equivalent to the SMC' model.
-For $k>1$, ancestry events that result in trapped non-ancestral material are
+\caption{\textbf{The SMC(k) model restricts common ancestry events.} We indicate
+which of the possible common ancestor events are permitted for various choices of
+$k$. All scenarios are allowed under the CwR. For $k = 0$ (SMC), common ancestry (purple)
+is permitted only when the lineages carry overlapping ancestral
+material (red and blue). For $k=1$ (SMC'), common ancestry
+may also occur if adjacent intervals are present.
+For $k>1$, common ancestry events that result in trapped non-ancestral material are
 permitted. The maximum span of any such interval is $k-1$, and when $k=L$, the
 full sequence length, the model converges to the CwR.}
 \label{fig:illustration1} \end{figure}
@@ -217,57 +217,94 @@ the CwR or the SMC(k) with k $\geq$ 3.} \label{fig:illustration2} \end{figure}
 
 \subsection{The SMC(k) model}
 
-%bit more detail on left to r vs backwards impleme
-The SMC models the ancestry of a sample by assuming a Markovian Process along
-the genome, i.e., the local genealogy at any position depends only on the
-genealogy to the left \citep{mcvean_approximating_2005}. Backward in time, the
-standard SMC is equivalent to restricting coalescence events only to pairs of
-lineages with overlapping ancestry segments
-\citep{mcvean_approximating_2005,bisschop_likelihoods_2025}. Because the SMC
-ignores the possibility of trapped, non-ancestral
-material~\citep{wiuf1999ancestry}, it over-estimates
-the number of independent ancestors that contribute to a sample and
-under-estimates long-range linkage disequilibrium (LD)
-\citep{marjoram_fast_2006}. For example, in the CwR, a pair of recombinant
-lineages has an appreciable chance to coalesce back together before any further
-events alter their ancestry. An updated version of the SMC, the SMC', was
-introduced to account for these events by including coalesence between exactly
-adjacent but non-overlapping ancestry segments \citep{marjoram_fast_2006}.
+The SMC models the ancestry of a sample by assuming a Markovian process along
+the genome, such that the local genealogy at any position depends only on the
+genealogy immediately to its left \citep{mcvean_approximating_2005}. Backwards
+in time, the standard SMC has an equivalent formulation in which common
+ancestor events are restricted to pairs of lineages carrying overlapping
+ancestral material
+\citep{mcvean_approximating_2005,bisschop_likelihoods_2025}.
+This restriction excludes common ancestor events that generate trapped,
+non-ancestral material \citep{wiuf1999ancestry}, causing the SMC to
+overestimate the number of independent ancestors contributing to a sample and
+to underestimate long-range linkage disequilibrium
+\citep{marjoram_fast_2006}. For example, under the CwR, two lineages created by
+a recombination event may subsequently coalesce back together before further
+events alter their ancestry~\cite[``diamonds'',][]{rasmussen2014genome}.
+The SMC$^\prime$ restores these events
+by additionally permitting common ancestor events between exactly adjacent,
+but non-overlapping, ancestral segments \citep{marjoram_fast_2006}. This
+backwards-time formulation suggests a natural family of intermediate
+approximations in which common ancestor events are permitted over a
+genomic scale.
 
-Although the SMC' is a substantial improvement over the standard SMC model, it
-only partially captures the long range correlations in ancestry generated under
-the CwR. Here, we introduce an approximation, SMC(k), that can capture
-correlations in ancestry up to an arbitrary level of precision which is
-specified by a scale parameter $k$. This general approximate model is inspired
-by similar approaches implemented in \textit{MaCS} \citep{chen_fast_2009},
+We define the SMC($k$) by associating each ancestral lineage with the genomic
+``hull''
+of the ancestral material that it carries, spanning its leftmost to rightmost
+ancestral segment. A common ancestor event between lineages $a$ and $b$ is
+permitted only when the physical distance between their hulls is at most $k$
+(Fig.~\ref{fig:illustration1}). Thus, $k$ determines the maximum genomic scale
+over which separated ancestral material can be brought together by a common
+ancestor event. Importantly, the SMC($k$) modifies only which common ancestor events
+are permitted; recombination events occur at the same local rates as under the
+CwR. On a genome with discrete coordinates and a sequence length of $L$
+base pairs,
+SMC(0) is equivalent to the standard SMC, and
+SMC(1) to the SMC$^\prime$, while SMC($L$) recovers the full CwR.
+Increasing $k$ therefore gives a nested sequence of
+models in which progressively more of the common ancestor events possible
+under the CwR are retained. Equivalently, increasing $k$ permits progressively
+longer spans of trapped non-ancestral material (Fig.~\ref{fig:illustration1}).
+Related approaches to controlling the extent of the SMC approximation have
+previously been implemented in \textit{MaCS} \citep{chen_fast_2009},
 \textit{scrm} \citep{staab_scrm_2015}, and \textit{Cosi2}
 \citep{shlyakhter_cosi2_2014}.
 
-The efficient implementation of the SMC(k) in \textit{msprime v1.4} overcomes
-the limitations of the CwR and permits simulations with a very high scaled
-recombination rate $\rho$. The SMC(k) is defined as the CwR process in which
-common ancestor events between lineages $a$ and $b$ are only permitted if the
-physical distance between the hulls of $a$ and $b$, is at most $k$
-(Fig.~\ref{fig:illustration1}). Importantly, if we assume a discretised genome,
-the SMC(0) and SMC (1) are equivalent to the standard SMC and SMC' models
-respectively. Furthermore, SMC(L), where $L$ is the chromosome length, is
-equivalent to the full CwR.
+We implemented the SMC($k$) in \texttt{msprime} v1.4 by extending its existing
+backwards-time CwR simulation algorithm~\citep{kelleher_efficient_2016}.
+In addition to the linked list of
+ancestral segments maintained for each lineage, the SMC($k$) implementation
+records the hull of each extant lineage. Hull endpoints are maintained in
+ordered search structures, allowing the simulator to keep track of which pairs
+of lineages satisfy the SMC($k$) common-ancestor criterion without explicitly
+testing every possible lineage pair at each event. A separate cumulative index
+stores, for each lineage, the number of eligible common-ancestor partners. The
+sum of these counts determines the rate of common ancestor events, and when
+such an event occurs a pair is sampled uniformly from the set of eligible
+pairs. Recombination and common ancestor events can change the extent of the
+ancestral material carried by a lineage, in which case its hull and the
+corresponding pair counts are updated. Thus, relative to Hudson's CwR
+algorithm, the principal additional cost of the SMC($k$) is maintaining the search
+indexes that identify eligible common-ancestor pairs.
 
-Since simulating under the SMC(k) involves tracking the hulls of each ancestral
-segment, execution time under the SMC(k) scales linearly with sample size ($n$)
-(Supplementary Fig. \ref{fig:scaling_sample_size}). In contrast, computation
-for the CwR scales only with the logarithm of $n$ (Supplementary Fig.
-\ref{fig:scaling_sample_size}). For example, simulating two diploid samples of
-an entire \textit{Drosophila} chromosome under the SMC(1) model is three orders
-of magnitude faster than under the CwR model (Fig.~\ref{fig:speed}). However,
-Supplementary Fig.~\ref{fig:speed_per_sample_size} illustrates how execution
-time scales with sample size and sequence length $L$. While simulating under
-the SMC(k) model is efficient for samples on the order of $n=10$, for larger
-sample sizes and values of $k$, simulations become inefficient compared to the
-standard CwR model.
+This additional bookkeeping leads to a different computational regime from the
+standard CwR algorithm. For modest sample sizes and very large
+population-scaled recombination rates, the SMC($k$) can provide substantial gains
+over the CwR. For example, simulating two
+diploid samples for an entire \emph{Drosophila melanogaster} chromosome under
+SMC(1) is approximately three orders of magnitude faster than under the CwR
+(Fig.~\ref{fig:speed}). This makes chromosome-scale simulations feasible in a
+parameter regime in which exact CwR simulations are prohibitively expensive.
+The advantage is not universal, however. Empirically, execution time for
+SMC(1) scales approximately linearly with sample size, whereas the
+corresponding CwR simulations scale approximately logarithmically
+(Supplementary Figs.~\ref{fig:speed_per_sample_size}, \ref{fig:scaling_sample_size}).
+The cost of the SMC($k$) also
+increases with $k$, as more lineage pairs become eligible for common ancestor
+events. Consequently, the SMC($k$) is most useful for long sequences with large
+population-scaled recombination rates and relatively modest sample sizes; for
+large samples or sufficiently large $k$, the standard CwR implementation can
+be more efficient.
 
-%Describe the implementation in msprime in a few sentences. Describe the regime in which it performs well. Reference fig 3 (currently fig 5). \newline
-\textbf{TODO} JK
+% The current implementation also has two restrictions arising from the
+% definition and bookkeeping of lineage hulls. First, $k$ is specified in
+% physical rather than genetic-map distance. Recombination therefore follows an
+% arbitrary recombination map, but the scale over which separated ancestral
+% segments may participate in common ancestor events is defined in physical
+% coordinates. Second, the current SMC($k$) implementation does not support gene
+% conversion. We return to the implications of these restrictions in the
+% Discussion.
+
 
 
 
