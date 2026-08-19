@@ -101,7 +101,7 @@ have since become standard models in population genetics and underpin a wide
 range of inferential methods \citep{peede_not_2026}.
 
 SMC approximations preserve the marginal distribution of local
-genealogies~\citep{kingman1982coalescent}, but
+genealogies, but
 necessarily alter their dependence along the genome. How important these
 differences are has classically been assessed using low-dimensional summaries
 of linkage. Early work compared linkage disequilibrium in simulations
@@ -109,8 +109,6 @@ of linkage. Early work compared linkage disequilibrium in simulations
 showed that the SMC$^\prime$ provides an accurate approximation to the
 joint distribution of pairwise coalescence times at two
 loci~\citep{wilton_smc_2015}.
-These results have established the SMC$^\prime$ as an
-excellent approximation for many classical population-genetic quantities.
 However, pairwise and two-locus summaries capture only part of the dependence
 encoded by a complete Ancestral Recombination Graph (ARG), and it is less clear
 how SMC approximations affect the persistence of ancestral haplotypes and other
@@ -150,9 +148,9 @@ Nevertheless, the
 computational cost of exact CwR simulation grows quadratically with
 population-scaled recombination rate~\citep{baumdicker_efficient_2022},
 and so whole-chromosome simulation can be
-prohibitively expensive for species with large effective population
-sizes and correspondingly large scaled recombination rates, such as
-\emph{Drosophila melanogaster}.
+prohibitively expensive for species with
+large population-scaled recombination rates,
+such as \emph{Drosophila melanogaster}.
 
 
 Here, we define a generalised SMC approximation, SMC($k$), in which the
@@ -226,7 +224,8 @@ genealogy to the left \citep{mcvean_approximating_2005}. Backward in time, the
 standard SMC is equivalent to restricting coalescence events only to pairs of
 lineages with overlapping ancestry segments
 \citep{mcvean_approximating_2005,bisschop_likelihoods_2025}. Because the SMC
-ignores the possibility of trapped, non-ancestral material, it over-estimates
+ignores the possibility of trapped, non-ancestral
+material~\citep{wiuf1999ancestry}, it over-estimates
 the number of independent ancestors that contribute to a sample and
 under-estimates long-range linkage disequilibrium (LD)
 \citep{marjoram_fast_2006}. For example, in the CwR, a pair of recombinant
