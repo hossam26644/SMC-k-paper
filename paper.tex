@@ -492,11 +492,18 @@ datasets under this inferred history under the SMC(1), each consisting of 20
 haploid sequences of chromosome 2R (the sequence length was set to 25.28 bp)
 and assumed a recombination rate of $r_\mathrm{bp} = 1.045e-08$. We used the
 \texttt{tskit} \texttt{allele\_frequency\_spectrum} function to calculate the
-mutation based unfolded SFS \citep{Ralph2020Stats}. Fig. \ref{fig:bootstrap}
+mutation based unfolded SFS \citep{Ralph2020Stats}.
+\textcolor{red}{FIXME: there's no (a) and (b) in the Figure, and anyway, isn't
+this detail for the caption?}
+Fig. \ref{fig:bootstrap}
 (a) shows the simulated demography and the mean estimated demography from
 SMC(1) simulated SFSs using blockbuster. Fig \ref{fig:bootstrap} (b) shows the
 decrease in normalised mean squared error for the three demography epochs with
-the increase of simulated sequence length. Using larger $k$ values, however,
+the increase of simulated sequence length.
+\textcolor{red}{FIXME: this isn't methods? Do we need this methods section for
+bootstrapping at all? It would make the Results section more concrete and would
+allow to to mention the simulation times if we just inlined it}
+ Using larger $k$ values, however,
 does not affect inference accuracy significantly (supplementary
 Fig.~\ref{fig:varyingK}).
 
