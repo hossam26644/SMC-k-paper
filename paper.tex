@@ -230,8 +230,9 @@ overestimate the number of independent ancestors contributing to a sample and
 to underestimate long-range linkage disequilibrium
 \citep{marjoram_fast_2006}. For example, under the CwR, two lineages created by
 a recombination event may subsequently coalesce back together before further
-events alter their ancestry~\cite[``diamonds'',][]{rasmussen2014genome}.
-The SMC$^\prime$ restores these events
+events alter their ancestry.
+The SMC$^\prime$ restores these
+``diamonds''~\citep{rasmussen2014genome}
 by additionally permitting common ancestor events between exactly adjacent,
 but non-overlapping, ancestral segments \citep{marjoram_fast_2006}. This
 backwards-time formulation suggests a natural family of intermediate
@@ -253,7 +254,7 @@ SMC(0) is equivalent to the standard SMC, and
 SMC(1) to the SMC$^\prime$, while SMC($L$) recovers the full CwR.
 Increasing $k$ therefore gives a nested sequence of
 models in which progressively more of the common ancestor events possible
-under the CwR are retained. Equivalently, increasing $k$ permits progressively
+under the CwR are retained. Consequently, increasing $k$ permits progressively
 longer spans of trapped non-ancestral material (Fig.~\ref{fig:illustration1}).
 Related approaches to controlling the extent of the SMC approximation have
 previously been implemented in \textit{MaCS} \citep{chen_fast_2009},
@@ -261,15 +262,15 @@ previously been implemented in \textit{MaCS} \citep{chen_fast_2009},
 \citep{shlyakhter_cosi2_2014}.
 
 We implemented the SMC($k$) in \texttt{msprime} v1.4 by extending its existing
-backwards-time CwR simulation algorithm~\citep{kelleher_efficient_2016}.
-In addition to the linked list of
-ancestral segments maintained for each lineage, the SMC($k$) implementation
-records the hull of each extant lineage. Hull endpoints are maintained in
-ordered search structures, allowing the simulator to keep track of which pairs
-of lineages satisfy the SMC($k$) common-ancestor criterion without explicitly
-testing every possible lineage pair at each event. A separate cumulative index
-stores, for each lineage, the number of eligible common-ancestor partners. The
-sum of these counts determines the rate of common ancestor events, and when
+backwards-time CwR simulation algorithm~\citep{kelleher_efficient_2016}. In
+addition to the linked list of ancestral segments maintained for each lineage,
+the SMC($k$) implementation records the hull of each extant lineage.
+Hull endpoints are maintained in ordered search structures, allowing the simulator
+to identify eligible common-ancestor pairs without explicitly testing all
+possible lineage pairs after each event. A separate cumulative index stores,
+for each lineage, the number of eligible common-ancestor partners and allows
+common-ancestor events to be sampled efficiently.
+The sum of these counts determines the rate of common ancestor events, and when
 such an event occurs a pair is sampled uniformly from the set of eligible
 pairs. Recombination and common ancestor events can change the extent of the
 ancestral material carried by a lineage, in which case its hull and the
@@ -280,18 +281,20 @@ indexes that identify eligible common-ancestor pairs.
 This additional bookkeeping leads to a different computational regime from the
 standard CwR algorithm. For modest sample sizes and very large
 population-scaled recombination rates, the SMC($k$) can provide substantial gains
-over the CwR. For example, simulating two
-diploid samples for an entire \emph{Drosophila melanogaster} chromosome under
+over the CwR.
+For example, simulating two diploid samples for the entirety of
+\emph{Drosophila melanogaster} chromosome 2R under
 SMC(1) is approximately three orders of magnitude faster than under the CwR
 (Fig.~\ref{fig:speed}). This makes chromosome-scale simulations feasible in a
 parameter regime in which exact CwR simulations are prohibitively expensive.
-The advantage is not universal, however. Empirically, execution time for
+The advantage is not universal, however.
+Over the range tested,
+execution time for
 SMC(1) scales approximately linearly with sample size, whereas the
 corresponding CwR simulations scale approximately logarithmically
 (Supplementary Figs.~\ref{fig:speed_per_sample_size}, \ref{fig:scaling_sample_size}).
-The cost of the SMC($k$) also
-increases with $k$, as more lineage pairs become eligible for common ancestor
-events. Consequently, the SMC($k$) is most useful for long sequences with large
+The computational advantage of the SMC($k$) also diminishes as $k$ increases.
+Consequently, the SMC($k$) is most useful for long sequences with large
 population-scaled recombination rates and relatively modest sample sizes; for
 large samples or sufficiently large $k$, the standard CwR implementation can
 be more efficient.
@@ -324,17 +327,18 @@ detailed information about linkage.
 
 Each node in an ARG corresponds to a unique genetic ancestor of the sample. The
 genomic segments associated with a node can be classified into three different
-categories (see Fig.~\ref{fig:illustration2}): Firstly, the binary span of a
+categories (see Fig.~\ref{fig:illustration2}). Firstly, the binary span of a
 node is the total span of genomic segments an ancestor contributes to two
 child nodes. Analogously, we can define the unary node span as the total
 length of genome over which this ancestor has a single child
-node~\citep{wong_general_2024}. Unary node spans  for example, capture the
-persistence of ancestral haplotypes across trees contained in an ARG
-\citep{fritze2026forest}. Finally, the span of trapped non-ancestral material
+node~\citep{wong_general_2024}, a property of ARGs that is increasingly
+being recognised as important to their overall
+structure~\cite{bisschop_likelihoods_2025,fritze2026forest}.
+Finally, the span of trapped non-ancestral material
 is the span of genomic segments \textit{between} binary and/or unary segments
 associated with a node. Importantly, all recombination nodes in an ARG are
 unary by definition (e.g.\ 3 and 4 in Fig.~\ref{fig:illustration2}) and a
-single coalescence node may contribute to all three span types. For example,
+given common ancestor node may contribute to all three span types. For example,
 node 5 in Fig.~\ref{fig:illustration2} is binary for two segments and
 associated with trapped non-ancestral material of length 2. In contrast, node 7
 is also binary for the same two segments but associated with a unary span of
