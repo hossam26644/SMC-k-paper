@@ -84,57 +84,87 @@ analysis.
 \thispagestyle{firststyle}
 \section{Introduction}
 
-Coalescent simulators model the ancestry of a sample of sequences backward in
-time as an ancestral recombination graph (ARG)
-\citep{baumdicker_efficient_2022, wong_general_2024, lewanski_era_2024} and
-provide a fast alternative to costly forwards-in-time individual-based
-simulations under many evolutionary scenarios, especially using efficient
-implementations like \textit{msprime} \citep{baumdicker_efficient_2022,
-kelleher_efficient_2016}. Traditionally, the coalescent with recombination
-(CwR) provides the canonical null model of population genomics, and coalescent
-simulators based on the CwR allow simulating sample ancestries under complex
-demographic histories \citep{hudson_properties_1983}. However, simulation
-routines for a growing suite of alternative models of ancestry have been
-implemented including the discrete-time Wright–Fisher model (DTWF)
+The coalescent with recombination (CwR) is the canonical mathematical
+framework for modelling recombination in a backwards-time
+approach\citep{hudson_properties_1983,griffiths1997ancestral}.
+Although it is the accepted base model in terms of capturing
+the properties of recombination, the CwR has proved cumbersome for inferential tasks.
+\citet{mcvean_approximating_2005} introduced the Sequentially Markovian
+Coalescent (SMC), in which each local tree along the genome can be
+depends only on the previous one, to simplify inference.
+Since then, the SMC, and its refinement the SMC'~\citep{marjoram_fast_2006},
+have become a standard models in population genetics,
+underpinning a wide range of inferential tasks~\citep{peede_not_2026}.
+The SMC is widely regarded to be a good approximation to the CwR, but
+relatively little formal evaluation of the properties has been
+undertaken. While each local tree is proven to be equivalent to the
+a sample from the coalescent~\citep{kingman1982coalescent}, the
+\emph{between-tree} properties have been limited to
+measuring linkage disequilibrium in
+simulations~\citep[e.g.][]{mcvean_approximating_2005}
+and analytical
+results on pairwise coalescence times~\citep{wilton_smc_2015}.
+Recent interest in Ancestral Recombination Graph (ARG)
+inference~\citep{brandt2024promise,lewanski2024era,nielsen2024inference,wong_general_2024}
+has motivated the development of additional methods of
+summarising the properties of haplotype-based measures of
+ARG similarity~\citep{ignatieva2025length,fritze2026forest}.
+These tools have not been applied to the question of how
+good an approximation the SMC is, for new applications that
+may depend more on haplotype structure than classical applications.
+It is not clear, for example, what effect the SMC has on the long range
+haplotype stucture of ARGs, which is critical when studying
+the properties of ultra-rare alleles in biobank-era
+human datasets~\citep{pope2026tracing}.
+
+
+A second motivation for the original development of the SMC was to enable
+simulation. At the time, CwR-based simulators like
+ms~\citep{hudson2002generating}
+could not generate whole chromosomes under human-like parameters.
+Several SMC-based simulators were
+developed~\citep{marjoram_fast_2006,staab_scrm_2015} which enabled
+much faster simulations, and allowed whole human chromosomes to be simulated
+with small samples sizes.
+The popularity of the SMC as a simulation model declined with the
+introduction of msprime~\citep{kelleher_efficient_2016}, however,
+as its efficient implementation of Hudson's CwR simulation algorithm
+proved faster than existing SMC simulators in most situations.
+Msprime has been in continuous development over the past
+decade~\citep{ragsdale2020lessons,baumdicker_efficient_2022,kelleher2020coalescent},
+adding support for the discrete-time Wright–Fisher model (DTWF)
 \citep{nelson_accounting_2020}, explicit pedigrees
-\citep{anderson-trocme_genes_2023}, and hybrid simulations that combine complex
-whole-population forwards-in-time simulations with deeper ancestry simulated
-backwards in time via ``recapitation'' using \textit{pyslim}
-\citep{gopalan_bridging_2025}.
+\citep{anderson-trocme_genes_2023},
+and hybrid simulations that combine forwards-in-time simulations with
+deeper ancestry simulated backwards in time via ``recapitation''
+\citep{kelleher2018efficient,haller2018tree,gopalan_bridging_2025}.
+Msprime's simulation efficiency and its
+deep integration with the tskit
+library~\citep{jeffery_population-scale_2026} makes it a powerful
+platform for population genetic analysis,
+and been incorporated into many downstream
+projects~\citep{stdpopsim2020,mckenzie2020ipcoal,rivera2021simulation,
+terasaki2021geonomics,szep2022using,
+stdpopsim2023, petr2023slendr,weiner2023cnasim,lifchitz2025twisstntern}
+Despite the efficiency of msprime's implementation of Hudson's
+CwR algorithm, its time-complexity is \emph{quadratic} in the
+scaled recombination rate, $\rho$~\citep{baumdicker_efficient_2022}.
+The practical consequence of this is that while many species
+can be simulated efficiently, those with a large $\rho$ such
+as \emph{Drosophila melanogaster} can take prohibitively long
+to simulate.
 
-However, coalescent simulations at the scale of whole chromosomes remain
-computationally challenging when the population scaled recombination rates
-$\rho = 4 N_e r$ is large, i.e.\ parameter regimes that are relevant for
-understanding population genomic variation in \textit{Drosophila}
-\citep{baumdicker_efficient_2022} and many other taxa with similar or higher
-levels of genetic diversity \citep{leffler_revisiting_2012}.
-
-The Sequentially Markovian Coalescent (SMC) \citep{mcvean_approximating_2005}
-and its refinement, the SMC’ \citep{marjoram_fast_2006} are widely used
-approximations of the CwR. Originally developed to make chromosome scale
-simulations computationally feasible for human-like parameters, the SMC has
-become best known as the basis of Hidden Markov Models, such as the PSMC
-\citep{li_inference_2011} and related approaches
-\citep{schiffels_inferring_2014, terhorst_accelerated_2025}, that infer the
-demographic history of populations (or the Inverse Instantaneous Coalescent
-Rate). Inference based on the SMC has been extended beyond trajectories of past
-effective population size \citep{peede_not_2026} to include selfing
-\citep{sellinger_inference_2020}, species divergence
-\citep{hobolth_genomic_2007}, gene flow \citep{dutheil_ancestral_2009,
-rivas-gonzalez_trails_2024, cousins_structured_2025}, and structural variation
-\citep{ignatieva_length_2025}. However, the SMC and SMC’ approximations fail to
-capture important longe-range correlation in ancestry along the genome.
-
-In this study, we implement a generalised SMC approximation, the SMC(k) model,
-in \textit{msprime v1.4}. The SMC(k) encompasses the SMC and the CWR models as
+In this paper we develop a generalised SMC approximation,
+the SMC($k$) model and implement it efficiently in msprime v1.4.
+The SMC($k$) encompasses the SMC and the CWR models as
 limit cases, where $k$ is a tuning parameter that determines the strength of
-approximation relative to the CwR. The paper is structured as follows: First,
-we describe the backwards implementation of the SMC(k). Second, we compare the
-linkage structure of ARGs generated under the approximation to those of the
-full CwR and describe how ARGs generated under the SMC' and the CwR differ.
-Finally, we illustrate how simulations under the SMC(k) can be used to
+approximation relative to the CwR.
+We then use this implementation to consider the properties of the SMC family
+of approximations under recently-defined properties of ARGs, giving
+new insights into the haplotype structure of the models.
+Finally, we illustrate how efficient SMC simulation in msprime under can be used to
 bootstrap composite likelihood estimates of past demography using an example
-from \textit{Drosophila melanogaster}.
+from \emph{Drosophila melanogaster}.
 
 \section{Results}
 \label{sec:materials:methods}
@@ -249,7 +279,7 @@ daughter nodes. Analogously, we can define the unary node span as the total
 length of genome over which this ancestor has a single daughter
 node~\cite{wong_general_2024}. Unary node spans  for example, capture the
 persistence of ancestral haplotypes across trees contained in an ARG
-\citep{Fritze_forest_2025}. Finally, the span of trapped non-ancestral material
+\citep{fritze2026forest}. Finally, the span of trapped non-ancestral material
 is the span of genomic segments \textit{between} binary and/or unary segments
 associated with a node. Importantly, all recombination nodes in an ARG are
 unary by definition (e.g.\ 3 and 4 in Fig.~\ref{fig:illustration2}) and a
@@ -282,7 +312,7 @@ rise to this long range LD.
 
 Another way to compare ARGs arising under the SMC(k) and the CwR is in terms of
 their ``matched span'', a similarity metric implemented in \textit{tscompare}
-\citep{Fritze_forest_2025}. We normalised the similarity with the
+\citep{fritze2026forest}. We normalised the similarity with the
 baseline/expected similarity between two random ARGs generated under the CwR.
 Perhaps unsurprisingly, we find that the normalised matched span of CwR ARGs in
 SMC(k) ARGs is reduced under the SMC(k) to a degree that is inversely
