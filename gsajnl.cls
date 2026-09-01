@@ -159,10 +159,11 @@
 {\headerfont \articletypename}}}
 
 \def\firstpageimage{%
-\begin{picture}(0,0)%
-\put(0,-27){\ouplogo}%
-\put(98,-20){\includegraphics[width=1.7129in]{GENETICSturquoise}}%
-\end{picture}}
+% \begin{picture}(0,0)%
+% \put(0,-27){\ouplogo}%
+% \put(98,-20){\includegraphics[width=1.7129in]{GENETICSturquoise}}%
+% \end{picture}}
+}
 
 \fancypagestyle{firststyle}{
    \fancyhead[LO,RE,LE,RO]{}
